@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -48,7 +49,7 @@ type usage struct {
 // Endpoint
 const API_URL = "https://api.openai.com/v1/chat/completions"
 
-func getGeneratedResponse(prompt string) string {
+func getGeneratedResponse(prompt string) (string, error) {
 	//Set gpt model and received prompt
 	ccReq := &chatCompletionRequest{
 		Model: "gpt-3.5-turbo",
@@ -61,48 +62,64 @@ func getGeneratedResponse(prompt string) string {
 	//Marshal Go struct into Json
 	jsonData, err := json.Marshal(ccReq)
 	if err != nil {
-		log.Fatalf("Failed to marshal json: %v", err)
+		log.Printf("Failed to Marshal: %v", err)
+		return "", err
 	}
 
 	//Create Http request struct with request method, endpoint and request body
 	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, "POST", API_URL, bytes.NewReader(jsonData))
 	if err != nil {
-		log.Fatalf("Failed to create http request struct: %v", err)
+		log.Printf("Failed to create http request struct: %v", err)
+		return "", err
 	}
 
 	//Add necessary headers, including the API key for authorization
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		log.Fatal("OPENAI_API_KEY environment variable is not set")
+		log.Println("OPENAI_API_KEY environment variable is not set")
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	//Execute http request to chatGPT
+	//Execute http request to chatGPT and get response
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Failed to get http response: %v", err)
-	}
-	if res.StatusCode != http.StatusOK {
-		log.Fatalf("Unexpected status code: %v", res.Status)
+		log.Printf("Failed to get http response: %v", err)
+		return "", err
 	}
 
-	//Decode http response body into Go struct
+	//Check if http status code is ok
+	if res.StatusCode != http.StatusOK {
+		log.Printf("Unexpected status code: %v", res.Status)
+		return "", err
+	}
+
+	//Read http response body
 	defer res.Body.Close()
-	ccRes := &chatCompletionResponse{}
-	err = json.NewDecoder(res.Body).Decode(ccRes)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Fatalf("Failed to decode: %v", err)
+		log.Printf("Failed to read body: %v", err)
+		return "", err
+	}
+
+	//Unmarshal Json response into Go struct
+	ccRes := &chatCompletionResponse{}
+	err = json.Unmarshal(body, ccRes)
+	if err != nil {
+		log.Printf("Failed to Unmarshal: %v", err)
+		return "", err
 	}
 
 	if len(ccRes.Choices) == 0 {
-		log.Fatal("No choices returned from chatGPT")
+		log.Println("No choices returned from chatGPT")
+		return "", err
 	}
 
 	//Return generated text from chatGPT
-	return ccRes.Choices[0].Message.Content
+	return ccRes.Choices[0].Message.Content, nil
 }
 
 func main() {
@@ -120,7 +137,11 @@ func main() {
 	fmt.Println("")
 
 	fmt.Println("++++++ Generated response ++++++")
-	fmt.Println(getGeneratedResponse(prompt))
+	response, err := getGeneratedResponse(prompt)
+	if err != nil {
+		log.Fatalf("Failed to get generated response from ChatGPT API: %v", err)
+	}
+	fmt.Println(response)
 
 	fmt.Println("")
 	fmt.Println("")
