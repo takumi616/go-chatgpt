@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -77,7 +78,8 @@ func getGeneratedResponse(prompt string) (string, error) {
 	//Add necessary headers, including the API key for authorization
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		log.Println("OPENAI_API_KEY environment variable is not set")
+		err := errors.New("OPENAI_API_KEY environment variable is not set")
+		log.Printf("Failed to get API KEY: %v", err)
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -93,7 +95,8 @@ func getGeneratedResponse(prompt string) (string, error) {
 
 	//Check if http status code is ok
 	if res.StatusCode != http.StatusOK {
-		log.Printf("Unexpected status code: %v", res.Status)
+		err := errors.New("Unexpected status code")
+		log.Printf("Failed to get expected status code: %v :%d", err, res.StatusCode)
 		return "", err
 	}
 
@@ -114,7 +117,8 @@ func getGeneratedResponse(prompt string) (string, error) {
 	}
 
 	if len(ccRes.Choices) == 0 {
-		log.Println("No choices returned from chatGPT")
+		err := errors.New("No choices returned from chatGPT")
+		log.Printf("Failed to get expected length of choices: %v", err)
 		return "", err
 	}
 
