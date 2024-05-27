@@ -1,2 +1,2 @@
 # go-chatgpt
-Use openAI's generative AI chatGPT in Golang.
+OpenAI's generative AI ChatGPT in Golang.
